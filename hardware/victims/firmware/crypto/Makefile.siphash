@@ -1,0 +1,6 @@
+########
+CRYPTO_LIB = siphash
+SRC += siphash.c
+CDEFS += -DSIPHASH
+VPATH += :$(FIRMWAREPATH)/crypto/$(CRYPTO_LIB)
+EXTRAINCDIRS += $(FIRMWAREPATH)/crypto/$(CRYPTO_LIB)

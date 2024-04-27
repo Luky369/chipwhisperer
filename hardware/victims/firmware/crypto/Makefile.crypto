@@ -38,6 +38,16 @@ else ifeq ($(CRYPTO_TARGET),AESSIMPLE)
   include $(FIRMWAREPATH)/crypto/Makefile.straightforward-aes
 
 
+else ifeq ($(CRYPTO_TARGET),SIPHASH)
+#
+# Crypto Target: SIPHASH
+# Crypto Options:
+#   None
+# Notes:
+#
+  include $(FIRMWAREPATH)/crypto/Makefile.siphash
+
+
 else ifeq ($(CRYPTO_TARGET),TINYAES128C)
 #
 # Crypto Target: TINYAES128C
