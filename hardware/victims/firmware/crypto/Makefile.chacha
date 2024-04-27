@@ -1,0 +1,6 @@
+########
+CRYPTO_LIB = chacha
+SRC += chacha.c
+CDEFS += -DCHACHA
+VPATH += :$(FIRMWAREPATH)/crypto/$(CRYPTO_LIB)
+EXTRAINCDIRS += $(FIRMWAREPATH)/crypto/$(CRYPTO_LIB)

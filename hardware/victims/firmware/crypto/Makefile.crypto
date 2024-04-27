@@ -47,6 +47,14 @@ else ifeq ($(CRYPTO_TARGET),SIPHASH)
 #
   include $(FIRMWAREPATH)/crypto/Makefile.siphash
 
+else ifeq ($(CRYPTO_TARGET),CHACHA)
+#
+# Crypto Target: CHACHA
+# Crypto Options:
+#   None
+# Notes:
+#
+  include $(FIRMWAREPATH)/crypto/Makefile.chacha
 
 else ifeq ($(CRYPTO_TARGET),TINYAES128C)
 #
