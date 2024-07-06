@@ -1,15 +1,14 @@
-CC = gcc
-CFLAGS = -Wall
-LDFLAGS =
+SRC = chacha.c main.c debug-print.c
+OBJ = $(SRC:.c=.o)
+TARGET = chacha_example
 
-# List of source files
-SRCS = chacha.c openssl_chacha.c openssl_ctype.c
-OBJS = $(SRCS:.c=.o)
+all: $(TARGET)
 
-# The main target
-chacha: $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $^
 
-# Rule for compiling C files
 %.o: %.c
-	$(CC) $(CFLAGS) -DPC_DEBUG -c -o $@ $<
+	$(CC) $(CFLAGS) -c $<
+
+clean:
+	rm -f $(OBJ) $(TARGET)

@@ -1,99 +1,143 @@
-#include <stdio.h>
-#include <stdint.h>
-#include "openssl_endian.h"
-#include "openssl_chacha.h"
+/*
+chacha-ref.c version 20080118
+D. J. Bernstein
+Public domain.
+*/
 
+#include "chacha.h"
+#include "ecrypt-sync.h"
 
-#define LEN 64
+#include "debug-print.h"
 
-#define KEY_LEN_BYTES 32
+#define ROTATE(v,c) (ROTL32(v,c))
+#define XOR(v,w) ((v) ^ (w))
+#define PLUS(v,w) (U32V((v) + (w)))
+#define PLUSONE(v) (PLUS((v),1))
 
-#define WORD_BYTE_COUNT 4
+#define QUARTERROUND(a,b,c,d) \
+  x[a] = PLUS(x[a],x[b]); x[d] = ROTATE(XOR(x[d],x[a]),16); \
+  x[c] = PLUS(x[c],x[d]); x[b] = ROTATE(XOR(x[b],x[c]),12); \
+  x[a] = PLUS(x[a],x[b]); x[d] = ROTATE(XOR(x[d],x[a]), 8); \
+  x[c] = PLUS(x[c],x[d]); x[b] = ROTATE(XOR(x[b],x[c]), 7);
 
-#define KEY_LEN_WORDS KEY_LEN_BYTES / WORD_BYTE_COUNT
+static void salsa20_wordtobyte(u8 output[64],const u32 input[16])
+{
+  u32 x[16];
+  int i;
 
-#define COUNTER_CONST 0x01
-#define NONCE_0 0
-#define NONCE_1 0x4a
-#define NONCE_2 0x09
+  for (i = 0;i < 16;++i) x[i] = input[i];
 
+  printf("Init state:\n");
+  print_block_32t(x, 16);
+  //Change...
+  for (i = 20;i > 0;i -= 2) {
+    QUARTERROUND( 0, 4, 8,12)
+    QUARTERROUND( 1, 5, 9,13)
+    QUARTERROUND( 2, 6,10,14)
+    QUARTERROUND( 3, 7,11,15)
+    QUARTERROUND( 0, 5,10,15)
+    QUARTERROUND( 1, 6,11,12)
+    QUARTERROUND( 2, 7, 8,13)
+    QUARTERROUND( 3, 4, 9,14)
+  }
+  printf("After 20 rounds\n");
+  print_block_32t(x, 16);
 
+  for (i = 0;i < 16;++i) x[i] = PLUS(x[i],input[i]);
 
-#define U8TO32_LE(p)                                                           \
-    (((uint64_t)((p)[0])) | ((uint64_t)((p)[1]) << 8) |                        \
-     ((uint64_t)((p)[2]) << 16) | ((uint64_t)((p)[3]) << 24))
+  printf("Final state\n");
+  print_block_32t(x, 16);
 
-
-#define U8TO32_BE(p)                                                           \
-    (((uint32_t)((p)[0]) << 24) | ((uint32_t)((p)[1]) << 16) |                \
-     ((uint32_t)((p)[2]) << 8) | ((uint32_t)((p)[3])))
-
-
-
-void chacha(const void *in, const size_t inlen, const void *k, uint8_t *out,
-            const size_t outlen) {
-	
-	unsigned int counter[4] = {COUNTER_CONST,NONCE_2,NONCE_1,NONCE_0};
-	const unsigned char *in_uc = (const unsigned char *)in;
-    const unsigned char *k_uc  = (const unsigned char *)k;
-	unsigned int k_ui[8];
-
-
-	DECLARE_IS_ENDIAN;
-
-	for (size_t i = 0; i < KEY_LEN_WORDS; ++i) {
-		if (IS_LITTLE_ENDIAN) {
-			k_ui[i] = U8TO32_LE(k_uc + i * WORD_BYTE_COUNT);
-		} else {
-			k_ui[i] = U8TO32_BE(k_uc + i * WORD_BYTE_COUNT);		
-		}
-    }
-
-#ifdef DEBUG
-    printf("\nKEY - int: ");
-    for (size_t i = 0; i < KEY_LEN_WORDS; ++i) {
-        printf("%08X ",k_ui[i]);
-    }
-    printf("\n");
-#endif
-	ChaCha20_ctr32((unsigned char *)out, in_uc, inlen, k_ui, counter);
-
+  for (i = 0;i < 16;++i) U32TO8_LITTLE(output + 4 * i,x[i]);
 }
 
-
-#ifdef PC_DEBUG
-int main (int argc, char *argv[]) {
-    // ChaCha20_ctr32(unsigned char *out, const unsigned char *inp, size_t len,
-                    // const unsigned int key[8], const unsigned int counter[4])
-    unsigned char out[LEN];
-    unsigned char inp[LEN];
-    size_t len = LEN;
-
-    uint8_t key[KEY_LEN_BYTES] = {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-        0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
-    };
-
-    for (size_t i = 0; i < LEN; ++i) {
-        inp[i] = 0x01;
-    }
-    
-    chacha(inp, len, key, out, len);
-
-    printf("INP: ");
-    for (size_t i = 0; i < LEN; ++i) {
-        printf("%02X ",inp[i]);
-    }
-    printf("\n");
-
-    printf("OUT: ");
-    for (size_t i = 0; i < LEN; ++i) {
-        printf("%02X ",out[i]);
-    }
-    printf("\n");
-    
-    return 0;
+void ECRYPT_init(void)
+{
+  return;
 }
-#endif //PC_DEBUG
+
+static const char sigma[16] = "expand 32-byte k";
+static const char tau[16] = "expand 16-byte k";
+
+void ECRYPT_keysetup(ECRYPT_ctx *x,const u8 *k,u32 kbits,u32 ivbits)
+{
+  const char *constants;
+
+  x->input[4] = U8TO32_LITTLE(k + 0);
+  x->input[5] = U8TO32_LITTLE(k + 4);
+  x->input[6] = U8TO32_LITTLE(k + 8);
+  x->input[7] = U8TO32_LITTLE(k + 12);
+  if (kbits == 256) { /* recommended */
+    k += 16;
+    constants = sigma;
+  } else { /* kbits == 128 */
+    constants = tau;
+  }
+  x->input[8] = U8TO32_LITTLE(k + 0);
+  x->input[9] = U8TO32_LITTLE(k + 4);
+  x->input[10] = U8TO32_LITTLE(k + 8);
+  x->input[11] = U8TO32_LITTLE(k + 12);
+  x->input[0] = U8TO32_LITTLE(constants + 0);
+  x->input[1] = U8TO32_LITTLE(constants + 4);
+  x->input[2] = U8TO32_LITTLE(constants + 8);
+  x->input[3] = U8TO32_LITTLE(constants + 12);
+}
+
+void ECRYPT_ivsetup(ECRYPT_ctx *x,const u8 *iv)
+{
+  x->input[12] = 0;
+  x->input[13] = 0;
+  x->input[14] = U8TO32_LITTLE(iv + 0);
+  x->input[15] = U8TO32_LITTLE(iv + 4);
+}
+
+void ECRYPT_noncesetup(ECRYPT_ctx *x,const u8 *nonce)
+{
+  x->input[13] = U8TO32_LITTLE(nonce + 0);
+  x->input[14] = U8TO32_LITTLE(nonce + 4);
+  x->input[15] = U8TO32_LITTLE(nonce + 8);
+}
+
+void ECRYPT_countersetup(ECRYPT_ctx *x,const u8 *counter)
+{
+  x->input[12] = U8TO32_LITTLE(counter + 0);
+}
+
+void ECRYPT_encrypt_bytes(ECRYPT_ctx *x,const u8 *m,u8 *c,u32 bytes)
+{
+  u8 output[64];
+  int i;
+
+  if (!bytes) return;
+  for (;;) {
+    printf("enc...\n");
+    salsa20_wordtobyte(output,x->input);
+    x->input[12] = PLUSONE(x->input[12]);
+    if (!x->input[12]) {
+      x->input[13] = PLUSONE(x->input[13]);
+      /* stopping at 2^70 bytes per nonce is user's responsibility */
+    }
+    if (bytes <= 64) {
+      printf("ret<=64...\n");
+      for (i = 0;i < bytes;++i) c[i] = m[i] ^ output[i];
+      return;
+    }
+    for (i = 0;i < 64;++i) c[i] = m[i] ^ output[i];
+    bytes -= 64;
+    c += 64;
+    m += 64;
+  }
+}
+
+void ECRYPT_decrypt_bytes(ECRYPT_ctx *x,const u8 *c,u8 *m,u32 bytes)
+{
+  ECRYPT_encrypt_bytes(x,c,m,bytes);
+}
+
+void ECRYPT_keystream_bytes(ECRYPT_ctx *x,u8 *stream,u32 bytes)
+{
+  u32 i;
+  for (i = 0;i < bytes;++i) stream[i] = 0;
+  ECRYPT_encrypt_bytes(x,stream,stream,bytes);
+}
+
