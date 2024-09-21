@@ -5,9 +5,15 @@ Public domain.
 */
 
 #include "chacha.h"
+// #if defined(PLATFORM) && (PLATFORM == CW308_STM32F3)
+#include "hal.h"
+// #endif
 #include "ecrypt-sync.h"
 
-#include "debug-print.h"
+#ifdef DEBUG_CHACHA
+#include "debug.h"
+#endif //DEBUG
+
 
 #define ROTATE(v,c) (ROTL32(v,c))
 #define XOR(v,w) ((v) ^ (w))
@@ -26,28 +32,21 @@ static void salsa20_wordtobyte(u8 output[64],const u32 input[16])
   int i;
 
   for (i = 0;i < 16;++i) x[i] = input[i];
-
-  printf("Init state:\n");
-  print_block_32t(x, 16);
-  //Change...
+  // Changed to use 20 rounds instead of 8
   for (i = 20;i > 0;i -= 2) {
+    // 1 round 
     QUARTERROUND( 0, 4, 8,12)
     QUARTERROUND( 1, 5, 9,13)
     QUARTERROUND( 2, 6,10,14)
     QUARTERROUND( 3, 7,11,15)
+    // 1 round
     QUARTERROUND( 0, 5,10,15)
     QUARTERROUND( 1, 6,11,12)
     QUARTERROUND( 2, 7, 8,13)
     QUARTERROUND( 3, 4, 9,14)
   }
-  printf("After 20 rounds\n");
-  print_block_32t(x, 16);
 
   for (i = 0;i < 16;++i) x[i] = PLUS(x[i],input[i]);
-
-  printf("Final state\n");
-  print_block_32t(x, 16);
-
   for (i = 0;i < 16;++i) U32TO8_LITTLE(output + 4 * i,x[i]);
 }
 
@@ -62,6 +61,13 @@ static const char tau[16] = "expand 16-byte k";
 void ECRYPT_keysetup(ECRYPT_ctx *x,const u8 *k,u32 kbits,u32 ivbits)
 {
   const char *constants;
+
+  #ifdef DEBUG_CHACHA
+  //Print passed k - uint8
+  print_d("Key: ");
+  print_u8(k, kbits / 8);
+  putch('\n');
+  #endif //DEBUG
 
   x->input[4] = U8TO32_LITTLE(k + 0);
   x->input[5] = U8TO32_LITTLE(k + 4);
@@ -91,15 +97,29 @@ void ECRYPT_ivsetup(ECRYPT_ctx *x,const u8 *iv)
   x->input[15] = U8TO32_LITTLE(iv + 4);
 }
 
+// Added to support setup for ChaCha20 with 96bit long nonce / IV
 void ECRYPT_noncesetup(ECRYPT_ctx *x,const u8 *nonce)
 {
+  #ifdef DEBUG_CHACHA
+  //Print passed k - uint8
+  print_d("Nonce: ");
+  print_u8(nonce, 12);
+  putch('\n');
+  #endif //DEBUG
   x->input[13] = U8TO32_LITTLE(nonce + 0);
   x->input[14] = U8TO32_LITTLE(nonce + 4);
   x->input[15] = U8TO32_LITTLE(nonce + 8);
 }
 
+// Added to support setup for ChaCha20 with 96bit long nonce / IV
 void ECRYPT_countersetup(ECRYPT_ctx *x,const u8 *counter)
 {
+  #ifdef DEBUG_CHACHA
+  //Print passed k - uint8
+  print_d("Cnt: ");
+  print_u8(counter, 4);
+  putch('\n');
+  #endif //DEBUG
   x->input[12] = U8TO32_LITTLE(counter + 0);
 }
 
@@ -107,19 +127,38 @@ void ECRYPT_encrypt_bytes(ECRYPT_ctx *x,const u8 *m,u8 *c,u32 bytes)
 {
   u8 output[64];
   int i;
+  #ifdef DEBUG_CHACHA
+  print_d("P: ");
+  print_u8(m, 64);
+  putch('\n');
+
+  print_d("X-input: ");
+  print_u8(x->input, 64);
+  putch('\n');
+  #endif //DEBUG
 
   if (!bytes) return;
   for (;;) {
-    printf("enc...\n");
     salsa20_wordtobyte(output,x->input);
+    #ifdef DEBUG_CHACHA
+    //Print passed k - uint8
+    print_d("OUT: ");
+    print_u8(output, 64);
+    putch('\n');
+    #endif //DEBUG
     x->input[12] = PLUSONE(x->input[12]);
     if (!x->input[12]) {
       x->input[13] = PLUSONE(x->input[13]);
       /* stopping at 2^70 bytes per nonce is user's responsibility */
     }
     if (bytes <= 64) {
-      printf("ret<=64...\n");
       for (i = 0;i < bytes;++i) c[i] = m[i] ^ output[i];
+      #ifdef DEBUG_CHACHA
+      //Print passed k - uint8
+      print_d("C: ");
+      print_u8(c, 64);
+      putch('\n');
+      #endif //DEBUG
       return;
     }
     for (i = 0;i < 64;++i) c[i] = m[i] ^ output[i];

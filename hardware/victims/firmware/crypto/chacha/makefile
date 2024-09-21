@@ -1,4 +1,5 @@
-SRC = chacha.c main.c debug-print.c
+#PC makefile
+RC = chacha.c main.c debug.c
 OBJ = $(SRC:.c=.o)
 TARGET = chacha_example
 

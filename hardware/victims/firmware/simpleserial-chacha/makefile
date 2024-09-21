@@ -34,7 +34,7 @@ TARGET = simpleserial-chacha
 
 # List C source files here.
 # Header files (.h) are automatically pulled in.
-SRC += simpleserial-chacha.c
+SRC += simpleserial-chacha.c chacha.c
 
 # -----------------------------------------------------------------------------
 EXTRA_OPTS = NO_EXTRA_OPTS
@@ -44,6 +44,13 @@ CFLAGS += -D$(EXTRA_OPTS)
 ifeq ($(CRYPTO_TARGET),)
   ${info No CRYPTO_TARGET passed - defaulting to CHACHA}
   CRYPTO_TARGET = CHACHA
+endif
+
+# Add debug.c and define DEBUG macro if DEBUG is set
+ifdef DEBUG
+  $(info DEBUG flag is set - adding debug.c to SRC and defining DEBUG macro)
+  SRC += debug.c
+  CFLAGS += -DDEBUG
 endif
 
 ${info Building for platform ${PLATFORM} with CRYPTO_TARGET=$(CRYPTO_TARGET)}
